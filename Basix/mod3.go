@@ -13,6 +13,7 @@ import (
 	"math"
 	"strings"
 	// "golang.org/x/tour/pic"
+	// "golang.org/x/tour/wc"
 )
 
 // Structs (A collection of fields)
@@ -62,6 +63,37 @@ var n = map[string]Location{
 		37, -122,
 	},
 }
+
+func WordCount(s string) map[string]int {
+	words_list := strings.Fields(s)
+	m := make(map[string]int)
+	for _, value := range words_list {
+		m[value] += 1
+	}
+	return m
+}
+
+func Compute(fn func(float64, float64) float64) float64 {
+	return fn(3, 4)
+}
+
+func adder() func(int) int {
+	sum := 0
+	return func(x int) int {
+		sum += x
+		return sum
+	}
+}
+
+func fibonacci() func() int {
+	a, b := 0, 1
+	return func() int {
+		result := a
+		a, b = b, a+b
+		return result
+	}
+}
+
 
 func main() {
 	// Pointers:
@@ -187,6 +219,7 @@ func main() {
 		fmt.Printf("%s\n", strings.Join(board[i], " "))
 	}
 
+	// Excercise-1 :
 	// pic.Show(Pic)
 
 	append_s := []int{}
@@ -217,4 +250,29 @@ func main() {
 	}
 
 	fmt.Println(n)
+
+	// Excercise-2 :
+	// wc.Test(WordCount)
+
+	hypot := func(x, y float64) float64 {
+		return math.Sqrt(math.Pow(x, 2) + math.Pow(y, 2))
+	}
+
+	hypot_test := hypot(8, 6)
+	fmt.Println(hypot_test)
+
+	fmt.Println(Compute(hypot))
+
+	pos := adder()
+
+	for i := 0; i < 3; i++ {
+		fmt.Println(pos(i))
+	}
+
+	// Excercise-3 :
+	fib := fibonacci()
+	for i := 0; i < 10; i++ {
+		fmt.Println(fib())
+	}
+
 }
