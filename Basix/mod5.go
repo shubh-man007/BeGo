@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 type I interface {
@@ -42,6 +43,29 @@ func do(i interface{}) {
 	default:
 		fmt.Printf("I don't know about type %T!\n", v)
 	}
+}
+
+type Myerror struct {
+	When time.Time
+	What string
+}
+
+func (m *Myerror) Error() string {
+	return fmt.Sprintf("at %s (%v)", m.What, m.When)
+}
+
+func run() error {
+	return &Myerror{time.Now(), "An error occured"}
+}
+
+type Myname struct {
+	Name string
+	Age  int
+}
+
+// Stringer
+func (m Myname) String() string {
+	return fmt.Sprintf("%v (%v years)", m.Name, m.Age)
 }
 
 func main() {
@@ -96,6 +120,17 @@ func main() {
 	do(1)
 	do("Hello")
 	do(math.Pi)
+
+	if err := run(); err != nil {
+		fmt.Println(err)
+	}
+
+	x := Myname{"Posto", 21}
+	y := Myname{"Geetu", 22}
+	z := Myname{"Chello", 22}
+
+	fmt.Println(x, y, z)
+
 }
 
 func describe(i I) {
