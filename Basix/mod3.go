@@ -6,6 +6,8 @@
 // 5. Map
 // PS : Zero value of Reference types in nil
 
+// A reference type is something that does not carry the data istelf but refers to it.
+
 package main
 
 import (
