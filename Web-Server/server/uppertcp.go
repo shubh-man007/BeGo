@@ -32,19 +32,22 @@ func main() {
 
 	listener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *port})
 	if err != nil {
-		log.Fatalf("Failed to listen to port %d: %v", listener.Addr(), err)
+		log.Fatalf("Failed to listen to port %s: %v", listener.Addr(), err)
 	}
 
 	defer listener.Close()
 
-	log.Printf("listening at localhost: %s", listener.Addr())
+	log.Printf("listening at localhost %s", listener.Addr())
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatalf("Failed to accept connection request at port %d: %v", listener.Addr(), err)
+			log.Fatalf("Failed to accept connection request at port %s: %v", listener.Addr(), err)
 		}
 
+		log.Printf("Accepted connection request at port %s", conn.RemoteAddr())
 		go echoUpper(conn, conn)
 	}
 }
+
+// Using buffered io to send/receive data line by line and read/write using tcp (io.Reader, io.Writer).

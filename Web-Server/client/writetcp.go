@@ -17,16 +17,19 @@ func main() {
 
 	flag.Parse()
 
+	// OS chooses a random available ephemeral port for the client.
 	conn, err := net.DialTCP("tcp", nil, &net.TCPAddr{Port: *port})
 	if err != nil {
-		log.Fatalf("Error in connection to port %d : %v", conn.RemoteAddr(), err)
+		log.Fatalf("Error in connection to port %s : %v", conn.RemoteAddr(), err)
 	}
 
 	defer conn.Close()
 
 	go func() {
 		// To read from the server
-		for connScanner := bufio.NewScanner(conn); connScanner.Scan(); {
+		log.Printf("Reading from server at port %s", conn.RemoteAddr())
+		connScanner := bufio.NewScanner(conn)
+		for connScanner.Scan() {
 			fmt.Printf("SERVER: %s\n", connScanner.Text())
 			if err := connScanner.Err(); err != nil {
 				log.Fatalf("error reading from %s: %v", conn.RemoteAddr(), err)
@@ -35,7 +38,10 @@ func main() {
 	}()
 
 	// To write to the server
-	for stdinScanner := bufio.NewScanner(os.Stdin); stdinScanner.Scan(); {
+	log.Printf("Writing to server at port %s", conn.RemoteAddr())
+	stdinScanner := bufio.NewScanner(os.Stdin)
+
+	for stdinScanner.Scan() {
 		fmt.Printf("CLIENT: %s \n", stdinScanner.Text())
 		if _, err := conn.Write(stdinScanner.Bytes()); err != nil {
 			log.Fatalf("Could not write to server atr port %d: %v", conn.RemoteAddr(), err)
