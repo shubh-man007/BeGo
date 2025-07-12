@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 var servehtml = `
@@ -79,5 +81,75 @@ func (s *server) HandleCreateUsers(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed) // HTTP 415
 	}
+}
 
+func (s *server) HandleUsers(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	name := params["name"]
+	// name := r.URL.Query().Get("name")
+	res, ok := s.users[name]
+	if !ok {
+		log.Printf("User: %s does not exist\n", name)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		ret := user{
+			Name:  name,
+			Email: res.email,
+			Age:   res.age,
+		}
+		msg, err := json.Marshal(ret)
+		if err != nil {
+			log.Printf("Unalble to marshal server response: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Get user %s", name)
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(msg)
+
+	case http.MethodPatch:
+		if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+			w.WriteHeader(http.StatusUnsupportedMediaType)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Could not read request body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError) // HTTP 500
+			return
+		}
+
+		defer r.Body.Close()
+
+		log.Printf("Update user %s", name)
+		var u user
+		err = json.Unmarshal(body, &u)
+		if err != nil {
+			log.Printf("Could not unmarshal request body: %v", err)
+			w.WriteHeader(http.StatusBadRequest) // HTTP 400
+			return
+		}
+
+		updated := s.users[name]
+		if u.Age != 0 {
+			updated.age = u.Age
+		}
+		if u.Email != "" {
+			updated.email = u.Email
+		}
+
+		s.users[name] = updated
+
+	case http.MethodDelete:
+		log.Printf("Delete user %s", name)
+		delete(s.users, name)
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }

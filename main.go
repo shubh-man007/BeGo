@@ -90,6 +90,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/shubh-man007/BeGo/pkg/server"
 )
 
@@ -97,14 +98,20 @@ func main() {
 	address := ":8080"
 	srv := server.New()
 
-	mux := http.NewServeMux()
+	// mux := http.NewServeMux()
+	r := mux.NewRouter()
 
-	mux.HandleFunc("/", srv.HandleIndex)
-	mux.HandleFunc("/userCreate", srv.HandleCreateUsers)
+	// mux.HandleFunc("/", srv.HandleIndex)
+	// mux.HandleFunc("/users/create", srv.HandleCreateUsers)
+	// mux.HandleFunc("/users", srv.HandleGetUsers)
+
+	r.HandleFunc("/", srv.HandleIndex)
+	r.HandleFunc("/users/create", srv.HandleCreateUsers)
+	r.HandleFunc("/users/{name}", srv.HandleUsers)
 
 	s := &http.Server{
 		Addr:           address,
-		Handler:        mux,
+		Handler:        r,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
