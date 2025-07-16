@@ -38,3 +38,6 @@ IPV6: // print the first ipv6 we find
 	}
 	fmt.Printf("none\n")
 }
+
+// go run dns.go <dns-name>
+// To check : curl ipinfo.io/<IP>

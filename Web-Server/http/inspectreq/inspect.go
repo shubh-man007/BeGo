@@ -9,7 +9,7 @@ import (
 
 func main() {
 	ctx := context.TODO()
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://eblog.fly.dev/index.html", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://example.com/index.html", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
