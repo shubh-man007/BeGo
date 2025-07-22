@@ -3,15 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
 func WriteJSON(w http.ResponseWriter, status int, v any) error {
-	w.WriteHeader(status)
 	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(v)
 }
 
@@ -31,11 +33,13 @@ func makeHTTPHandleFunc(f APIFunc) http.HandlerFunc {
 
 type APIServer struct {
 	listenAddr string
+	storage    PostgresStorage
 }
 
-func NewAPIServer(listenAddr string) *APIServer {
+func NewAPIServer(listenAddr string, storage PostgresStorage) *APIServer {
 	return &APIServer{
 		listenAddr: listenAddr,
+		storage:    storage,
 	}
 }
 
@@ -67,18 +71,59 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
-	id := mux.Vars(r)["id"]
-	fmt.Println("get:", id)
-	// account := NewAccount("Shubhodeep", "De")
-	return WriteJSON(w, http.StatusOK, &account{})
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		return fmt.Errorf("invalid account id")
+	}
+
+	p := s.storage
+	acc, err := p.GetAccountByID(id)
+	if err != nil {
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, acc)
 }
 
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Could not read request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError) // HTTP 500
+		return err
+	}
+	defer r.Body.Close()
+
+	var a account
+	err = json.Unmarshal(body, &a)
+	if err != nil {
+		log.Printf("Could not unmarshal request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest) // HTTP 400
+		return err
+	}
+
+	p := s.storage
+	err = p.CreateAccount(&a)
+	if err != nil {
+		log.Printf("Cannot create account")
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, a)
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		return fmt.Errorf("invalid account id")
+	}
+
+	p := s.storage
+	err = p.DeleteAccount(id)
+	if err != nil {
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, id)
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
