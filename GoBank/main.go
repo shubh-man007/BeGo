@@ -1,6 +1,15 @@
 package main
 
+import (
+	"log"
+)
+
 func main() {
-	srv := NewAPIServer(":8080")
+	connStr := "postgres://gobank:gobankpass@localhost:5432/gobank?sslmode=disable"
+	pgxDB, err := NewPostgresStorage(connStr)
+	if err != nil {
+		log.Fatalf("Error in creating DB %s", err.Error())
+	}
+	srv := NewAPIServer(":8080", *pgxDB)
 	srv.Run()
 }
