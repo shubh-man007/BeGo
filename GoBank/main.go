@@ -10,6 +10,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error in creating DB %s", err.Error())
 	}
-	srv := NewAPIServer(":8080", *pgxDB)
+
+	if err := pgxDB.CreateAccountsTable(); err != nil {
+		log.Fatalf("Error creating accounts table: %s", err.Error())
+	}
+
+	srv := NewAPIServer(":8080", pgxDB)
 	srv.Run()
 }
