@@ -78,3 +78,25 @@ func (p *PostgresStorage) GetAccountByID(id int) (*account, error) {
 
 	return &a, nil
 }
+
+func (p *PostgresStorage) TransferBalance(a *account, fund float64) (*account, error) {
+	query := `UPDATE accounts 
+			  SET balance = balance + $1 
+			  WHERE account_id = $2 
+			  RETURNING account_id, first_name, last_name, number, balance`
+
+	var updatedAccount account
+	err := p.db.QueryRow(query, fund, a.AccountID).Scan(
+		&updatedAccount.AccountID,
+		&updatedAccount.FirstName,
+		&updatedAccount.LastName,
+		&updatedAccount.Number,
+		&updatedAccount.Balance,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &updatedAccount, nil
+}
