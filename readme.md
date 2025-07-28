@@ -1,6 +1,6 @@
 ## Go Code
 
-This repository contains Go examples and experiments.
+This repository contains Go examples and experiments (mostly shenanigans).
 
 Currently working on developing backend and microservice based systems in go. 
 
