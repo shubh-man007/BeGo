@@ -122,14 +122,15 @@ func sendKafkaMessage(broker, topic string, message interface{}) error {
 
 func main() {
 	godotenv.Load()
-	if len(os.Args) < 4 {
-		fmt.Println("Usage: go run main.go <video_path> <output_dir> <fps>")
+	if len(os.Args) < 5 {
+		fmt.Println("Usage: go run main.go <video_path> <output_dir> <fps> <job_id>")
 		os.Exit(1)
 	}
 	videoPath := os.Args[1]
 	outputDir := os.Args[2]
 	fps := 1
 	fmt.Sscanf(os.Args[3], "%d", &fps)
+	jobID := os.Args[4]
 
 	db, err := connectDB()
 	if err != nil {
@@ -137,7 +138,7 @@ func main() {
 	}
 	defer db.Close()
 
-	videoID := uuid.New().String()
+	videoID := jobID
 	videoName := filepath.Base(videoPath)
 	videoLength := 0
 
