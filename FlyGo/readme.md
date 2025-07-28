@@ -2,7 +2,7 @@
 sequenceDiagram
     participant Go as Go Producer
     participant Kafka as Kafka Broker
-    participant Py as Python Consumer(s)
+    participant Py as Python Consumer Group
     participant S3 as S3 Storage
     participant DB as Database
     
