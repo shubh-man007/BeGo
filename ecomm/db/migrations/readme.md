@@ -1,0 +1,1 @@
+- Up and Down migrations for the database
