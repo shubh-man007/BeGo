@@ -101,6 +101,26 @@ import (
 	"github.com/shubh-man007/BeGo/httpfromtcp/internal/request"
 )
 
+func handleConn(conn net.Conn) {
+	defer func() {
+		log.Printf("Connection closed: %s", conn.RemoteAddr())
+		conn.Close()
+	}()
+
+	log.Printf("Accepted connection from %s", conn.RemoteAddr())
+
+	r, err := request.RequestFromReader(conn)
+	if err != nil {
+		log.Printf("Error parsing request from %s: %v", conn.RemoteAddr(), err)
+		return
+	}
+
+	fmt.Printf("Request line:\n")
+	fmt.Printf("- Method: %s\n", r.RequestLine.Method)
+	fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
+	fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
+}
+
 func main() {
 	const port = ":42069"
 	const name = "uppertcp"
@@ -121,16 +141,6 @@ func main() {
 			continue
 		}
 
-		log.Printf("Accepted connection from %s", conn.RemoteAddr())
-
-		r, err := request.RequestFromReader(conn)
-		if err != nil {
-			log.Fatalf("Error in parsing request: %s", err.Error())
-		}
-
-		fmt.Printf("Request line:\n")
-		fmt.Printf("- Method: %s\n", r.RequestLine.Method)
-		fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
-		fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
+		go handleConn(conn)
 	}
 }
