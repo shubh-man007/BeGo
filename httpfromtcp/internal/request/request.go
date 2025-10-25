@@ -3,6 +3,7 @@ package request
 import (
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,12 +16,14 @@ const (
 	stateInitialized = iota
 	stateDone
 	requestStateParsingHeaders
+	requestStateParsingBody
 )
 
 type Request struct {
 	RequestLine RequestLine
 	state       int
-	Header      headers.Headers
+	Header      *headers.Headers
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -88,27 +91,48 @@ func (r *Request) Parse(data []byte) (int, error) {
 		}
 
 		consumed := n + len("\r\n")
-
 		r.RequestLine = reqLine
 		r.state = requestStateParsingHeaders
 		return consumed, nil
 
 	case requestStateParsingHeaders:
-		looper := false
-		consumed := 0
-		for !looper {
-			n, done, err := r.Header.Parse(data)
-			if err != nil {
-				return 0, err
-			}
-
-			consumed += n
-			if done {
-				r.state = stateDone
-				return consumed, nil
-			}
+		n, done, err := r.Header.Parse(data)
+		if err != nil {
+			return 0, err
 		}
-		return 0, errors.New("error: could not parse field-line")
+
+		if done {
+			r.state = requestStateParsingBody
+		}
+
+		return n, nil
+
+	case requestStateParsingBody:
+		CLVal := r.Header.Get("Content-Length")
+		if CLVal == "" {
+			r.state = stateDone
+			return 0, nil
+		}
+
+		r.Body = append(r.Body, data...)
+
+		CLInt, err := strconv.Atoi(CLVal)
+		if err != nil {
+			return 0, errors.New("error: invalid content length value")
+		}
+
+		if len(r.Body) > CLInt {
+			return 0, errors.New("error: body length greater than header specified value")
+		}
+
+		// if len(r.Body) < CLInt {
+		// 	return 0, errors.New("error: body length less than header specified value")
+		// }
+
+		if len(r.Body) == CLInt {
+			r.state = stateDone
+		}
+		return len(data), nil
 
 	case stateDone:
 		return 0, errors.New("error: trying to read data in a done state")
@@ -123,7 +147,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buff := make([]byte, buffSize)
 	readToIndex := 0 //bytes till which buff are filled
 
-	req := &Request{state: stateInitialized}
+	req := &Request{
+		state:  stateInitialized,
+		Header: headers.NewHeaders(),
+	}
 
 	for req.state != stateDone {
 		// In case buffer gets full:
