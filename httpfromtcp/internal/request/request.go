@@ -5,16 +5,22 @@ import (
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/shubh-man007/BeGo/httpfromtcp/internal/headers"
 )
+
+const CRLF = "\r\n"
 
 const (
 	stateInitialized = iota
 	stateDone
+	requestStateParsingHeaders
 )
 
 type Request struct {
 	RequestLine RequestLine
 	state       int
+	Header      headers.Headers
 }
 
 type RequestLine struct {
@@ -33,7 +39,7 @@ func IsUpper(s string) bool {
 }
 
 func parseRequestLine(request string) (RequestLine, int, error) {
-	idx := strings.Index(string(request), "\r\n")
+	idx := strings.Index(string(request), CRLF)
 	if idx == -1 {
 		return RequestLine{}, 0, nil
 	}
@@ -84,8 +90,25 @@ func (r *Request) Parse(data []byte) (int, error) {
 		consumed := n + len("\r\n")
 
 		r.RequestLine = reqLine
-		r.state = stateDone
+		r.state = requestStateParsingHeaders
 		return consumed, nil
+
+	case requestStateParsingHeaders:
+		looper := false
+		consumed := 0
+		for !looper {
+			n, done, err := r.Header.Parse(data)
+			if err != nil {
+				return 0, err
+			}
+
+			consumed += n
+			if done {
+				r.state = stateDone
+				return consumed, nil
+			}
+		}
+		return 0, errors.New("error: could not parse field-line")
 
 	case stateDone:
 		return 0, errors.New("error: trying to read data in a done state")
