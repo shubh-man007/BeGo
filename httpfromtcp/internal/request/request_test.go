@@ -1,77 +1,85 @@
-package request
+package headers
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type chunkReader struct {
-	data            string
-	numBytesPerRead int
-	pos             int
-}
-
-// Read reads up to len(p) or numBytesPerRead bytes from the string per call
-// its useful for simulating reading a variable number of bytes per chunk from a network connection
-func (cr *chunkReader) Read(p []byte) (n int, err error) {
-	if cr.pos >= len(cr.data) {
-		return 0, io.EOF
-	}
-	endIndex := cr.pos + cr.numBytesPerRead
-	if endIndex > len(cr.data) {
-		endIndex = len(cr.data)
-	}
-	n = copy(p, cr.data[cr.pos:endIndex])
-	cr.pos += n
-
-	return n, nil
-}
-
-func TestRequestLineParse(t *testing.T) {
-	// // Test: Good GET Request line
-	// r, err := RequestFromReader(strings.NewReader("GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
-	// require.NoError(t, err)
-	// require.NotNil(t, r)
-	// assert.Equal(t, "GET", r.RequestLine.Method)
-	// assert.Equal(t, "/", r.RequestLine.RequestTarget)
-	// assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
-
-	// // Test: Good GET Request line with path
-	// r, err = RequestFromReader(strings.NewReader("GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
-	// require.NoError(t, err)
-	// require.NotNil(t, r)
-	// assert.Equal(t, "GET", r.RequestLine.Method)
-	// assert.Equal(t, "/coffee", r.RequestLine.RequestTarget)
-	// assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
-
-	// // Test: Invalid number of parts in request line
-	// _, err = RequestFromReader(strings.NewReader("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
-	// require.Error(t, err)
-
-	// Test: Good GET Request line
-	reader := &chunkReader{
-		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
-		numBytesPerRead: 3,
-	}
-	r, err := RequestFromReader(reader)
+func TestFieldLineParser(t *testing.T) {
+	// Test: Valid single header
+	headers := NewHeaders()
+	data := []byte("Host: localhost:42069\r\n\r\n")
+	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
-	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "/", r.RequestLine.RequestTarget)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+	require.NotNil(t, headers)
+	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	assert.Equal(t, 25, n)
+	assert.True(t, done)
 
-	// Test: Good GET Request line with path
-	reader = &chunkReader{
-		data:            "GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
-		numBytesPerRead: 1,
-	}
-	r, err = RequestFromReader(reader)
+	// Test: Valid single header with extra whitespace
+	headers = NewHeaders()
+	data = []byte("       Host:          localhost:42069       \r\n\r\n")
+	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
-	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "/coffee", r.RequestLine.RequestTarget)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	assert.Equal(t, 48, n)
+	assert.True(t, done)
+
+	// Test: Valid 2 headers with existing headers
+	headers = NewHeaders()
+	headers.Set("Existing", "header")
+	data = []byte("Host: localhost:42069\r\nContent-Type: application/json\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	assert.Equal(t, "application/json", headers.Get("Content-type"))
+	assert.Equal(t, "header", headers.Get("Existing"))
+	assert.Equal(t, 57, n)
+	assert.True(t, done)
+
+	// Test: Valid done
+	headers = NewHeaders()
+	data = []byte("\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	assert.True(t, done)
+
+	// Test: Invalid spacing header
+	headers = NewHeaders()
+	data = []byte("       Host : localhost:42069       \r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// Test: Caps Header
+	headers = NewHeaders()
+	data = []byte("HOST:  LOcalhoST:    8080\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, "LOcalhoST:    8080", headers.Get("Host"))
+	assert.Equal(t, 27, n)
+	assert.False(t, done)
+
+	// Test: Invalid Header
+	headers = NewHeaders()
+	data = []byte("H©st: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// Test: Multiple Values
+	headers = NewHeaders()
+	data = []byte("Set-Person: lane-loves-go\r\nSet-Person: prime-loves-zig\r\nSet-Person: tj-loves-ocaml\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 86, n)
+	assert.True(t, done)
+	assert.Equal(t, "lane-loves-go,prime-loves-zig,tj-loves-ocaml", headers.Get("Set-Person"))
 }
+
+// go test ./...
