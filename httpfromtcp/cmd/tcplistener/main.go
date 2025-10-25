@@ -88,7 +88,8 @@
 // }
 
 // NOTE:
-// Curl sends the header first and then the body, because of a missing CRLF it believes that there are more headers coming in and keeps the connection open, buffering the request payload.
+// Curl sends the header first and then the body, because of a missing CRLF it believes that there are more headers coming in
+// and keeps the connection open, buffering the request payload.
 // And when we interrupt the curl request, the data present in the buffer is sent to the server and is printed out in the console.
 
 package main
@@ -119,6 +120,14 @@ func handleConn(conn net.Conn) {
 	fmt.Printf("- Method: %s\n", r.RequestLine.Method)
 	fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
 	fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
+
+	fmt.Printf("Headers:\n")
+	for key, val := range r.Header.Iter() {
+		fmt.Printf("- %s: %s\n", key, val)
+	}
+
+	fmt.Printf("Body:\n")
+	fmt.Printf("%s\n", string(r.Body))
 }
 
 func main() {
