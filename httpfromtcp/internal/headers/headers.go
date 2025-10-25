@@ -3,14 +3,39 @@ package headers
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 )
 
-const CRLF = "\r\n"  //Or as Prime would say a "Registered Nurse"
+const CRLF = "\r\n"
 
-type Headers map[string]string
+var fieldNameConstraint = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
 
-func (h Headers) Parse(data []byte) (int, bool, error) {
+type Headers struct {
+	header map[string]string
+}
+
+func NewHeaders() *Headers {
+	return &Headers{
+		header: map[string]string{},
+	}
+}
+
+func (h *Headers) Get(name string) string {
+	return h.header[strings.ToLower(name)]
+}
+
+func (h *Headers) Set(name, value string) {
+	v, ok := h.header[strings.ToLower(name)]
+	if !ok {
+		h.header[strings.ToLower(name)] = value
+	} else {
+		h.header[strings.ToLower(name)] = fmt.Sprintf("%s,%s", v, value)
+	}
+}
+
+func (h *Headers) Parse(data []byte) (int, bool, error) {
 	bytesConsumed := 0
 
 	for len(data) > 0 {
@@ -31,7 +56,12 @@ func (h Headers) Parse(data []byte) (int, bool, error) {
 
 		key := strings.TrimSpace(line[:colonIdx])
 		value := strings.TrimSpace(line[colonIdx+1:])
-		h[key] = value
+
+		if !fieldNameConstraint.Match([]byte(key)) {
+			return bytesConsumed, false, errors.New("invalid tchar for field-name")
+		}
+
+		h.Set(key, value)
 
 		consumed := idxCRLF + len(CRLF)
 		bytesConsumed += consumed
