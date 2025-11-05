@@ -3,22 +3,61 @@ package server
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/shubh-man007/BeGo/httpfromtcp/internal/request"
+	"github.com/shubh-man007/BeGo/httpfromtcp/internal/response"
 )
 
-const resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello World!\n"
+// const resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello World!\n"
 
 type Server struct {
 	Port     int
+	handler  Handler
 	listener net.Listener
 	closed   atomic.Bool
 }
 
+type HandlerError struct {
+	Code    response.StatusCode
+	Message string
+}
+
 func NewServer() *Server {
 	return &Server{}
+}
+
+func NewHandlerError() *HandlerError {
+	return &HandlerError{}
+}
+
+type Handler func(w *response.Writer, req *request.Request)
+
+func (herr *HandlerError) WriteErrorResponse(w io.Writer) error {
+	code := herr.Code
+	message := herr.Message
+
+	_, err := response.WriteStatusLine(w, code)
+	if err != nil {
+		return errors.New("could not write error code to connection")
+	}
+
+	h := response.GetDefaultHeaders(len(message))
+	err = response.WriteResHeaders(w, h)
+	if err != nil {
+		return errors.New("could not write error headers to connection")
+	}
+
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		return errors.New("could not write error message to connection")
+	}
+
+	return nil
 }
 
 func (s *Server) Close() error {
@@ -33,11 +72,18 @@ func (s *Server) Close() error {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	_, err := conn.Write([]byte(resp))
+	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		log.Printf("Failed to write back to client")
+		herr := &HandlerError{
+			Code:    response.StatusBadRequest,
+			Message: err.Error(),
+		}
+		herr.WriteErrorResponse(conn)
+		return
 	}
-	log.Printf("Server: \n%s", resp)
+
+	w := response.NewWriter(conn)
+	s.handler(w, req)
 }
 
 func (s *Server) listen() {
@@ -55,7 +101,7 @@ func (s *Server) listen() {
 	}
 }
 
-func Serve(port int) (*Server, error) {
+func Serve(port int, h Handler) (*Server, error) {
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		return &Server{}, fmt.Errorf("failed to listen at address %v : %s", port, err.Error())
@@ -63,6 +109,7 @@ func Serve(port int) (*Server, error) {
 
 	s := NewServer()
 	s.Port = port
+	s.handler = h
 	s.listener = listener
 	s.closed.Store(false)
 
