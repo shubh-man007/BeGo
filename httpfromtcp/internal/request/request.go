@@ -153,7 +153,23 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	for req.state != stateDone {
-		// In case buffer gets full:
+		// parse whatever we already have.
+		if readToIndex > 0 || req.state != stateInitialized {
+			consumed, err := req.Parse(buff[:readToIndex])
+			if err != nil {
+				return nil, err
+			}
+			if consumed > 0 {
+				copy(buff, buff[consumed:readToIndex])
+				readToIndex -= consumed
+				// attempt parsing again before reading more.
+				continue
+			}
+			if req.state == stateDone {
+				break
+			}
+		}
+
 		if readToIndex == len(buff) {
 			newBuff := make([]byte, len(buff)*2)
 			copy(newBuff, buff)
@@ -163,25 +179,18 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		n, err := reader.Read(buff[readToIndex:])
 		if err != nil {
 			if err == io.EOF {
-				req.state = stateDone
+				// Final attempt to parse remaining buffered data on EOF
+				if readToIndex > 0 || req.state != stateInitialized {
+					if _, perr := req.Parse(buff[:readToIndex]); perr != nil {
+						return nil, perr
+					}
+				}
 				break
 			}
 			return nil, err
 		}
 
 		readToIndex += n
-
-		//Parse current buffer:
-		consumed, err := req.Parse(buff[:readToIndex])
-		if err != nil {
-			return nil, err
-		}
-
-		if consumed > 0 {
-			copy(buff, buff[consumed:readToIndex])
-			readToIndex -= consumed
-		}
-
 	}
 	return req, nil
 }
