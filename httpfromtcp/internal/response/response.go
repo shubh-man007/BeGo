@@ -17,9 +17,26 @@ const (
 	StatusOK                  StatusCode = 200
 	StatusBadRequest          StatusCode = 400
 	StatusInternalServerError StatusCode = 500
+	StatusUnrecog             StatusCode = -1
 )
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
+const (
+	WriterStatusInit = iota
+	WriterStatusHeader
+	WriterStatusBody
+	WriterStatusDone
+)
+
+type Writer struct {
+	Status int
+	writer io.Writer
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{writer: w}
+}
+
+func WriteStatusLine(w io.Writer, statusCode StatusCode) (StatusCode, error) {
 	var rp string
 	switch statusCode {
 	case StatusOK:
@@ -29,14 +46,14 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 	case StatusInternalServerError:
 		rp = "HTTP/1.1 500 Internal Server Error"
 	default:
-		return errors.New("unsupported status code")
+		return StatusUnrecog, errors.New("unsupported status code")
 	}
 
 	_, err := w.Write([]byte(rp + CRLF))
 	if err != nil {
-		return errors.New("could not write to connection")
+		return statusCode, errors.New("could not write to connection")
 	}
-	return nil
+	return statusCode, nil
 }
 
 func GetDefaultHeaders(contentLen int) *headers.Headers {
@@ -47,7 +64,7 @@ func GetDefaultHeaders(contentLen int) *headers.Headers {
 	return h
 }
 
-func WriteHeaders(w io.Writer, h *headers.Headers) error {
+func WriteResHeaders(w io.Writer, h *headers.Headers) error {
 	for key, value := range h.Iter() {
 		fieldLine := fmt.Sprintf("%s: %s%s", key, value, CRLF)
 		_, err := w.Write([]byte(fieldLine))
@@ -60,4 +77,100 @@ func WriteHeaders(w io.Writer, h *headers.Headers) error {
 		return errors.New("could not write final CRLF")
 	}
 	return nil
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	if w.Status != WriterStatusInit {
+		return errors.New("state mismatch, status line parsed or skipped")
+	}
+
+	var rp string
+	switch statusCode {
+	case StatusOK:
+		rp = "HTTP/1.1 200 OK"
+	case StatusBadRequest:
+		rp = "HTTP/1.1 400 Bad Request"
+	case StatusInternalServerError:
+		rp = "HTTP/1.1 500 Internal Server Error"
+	default:
+		return errors.New("unsupported status code")
+	}
+
+	_, err := w.writer.Write([]byte(rp + CRLF))
+	if err != nil {
+		return err
+	}
+
+	w.Status = WriterStatusHeader
+
+	return nil
+}
+
+func (w *Writer) WriteHeaders(headers *headers.Headers) error {
+	if w.Status != WriterStatusHeader {
+		return errors.New("state mismatch, headers parsed or skipped")
+	}
+
+	for key, value := range headers.Iter() {
+		fieldLine := fmt.Sprintf("%s: %s%s", key, value, CRLF)
+		_, err := w.writer.Write([]byte(fieldLine))
+		if err != nil {
+			return err
+		}
+	}
+	_, err := w.writer.Write([]byte(CRLF))
+	if err != nil {
+		return err
+	}
+
+	w.Status = WriterStatusBody
+
+	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.Status != WriterStatusBody {
+		return 0, errors.New("state mismatch, body parsed or skipped")
+	}
+
+	n, err := w.writer.Write(p)
+	if err != nil {
+		return 0, err
+	}
+
+	w.Status = WriterStatusDone
+
+	return n, nil
+}
+
+func (w *Writer) LogResponse(statusCode StatusCode, h *headers.Headers, body string) string {
+	if w.Status != WriterStatusDone {
+		return errors.New("state mismatch, response not formed yet").Error()
+	}
+
+	var res string
+	var rp string
+	switch statusCode {
+	case StatusOK:
+		rp = "HTTP/1.1 200 OK"
+	case StatusBadRequest:
+		rp = "HTTP/1.1 400 Bad Request"
+	case StatusInternalServerError:
+		rp = "HTTP/1.1 500 Internal Server Error"
+	default:
+		return errors.New("unsupported status code").Error()
+	}
+
+	rp += CRLF
+	res += rp
+
+	for key, value := range h.Iter() {
+		fieldLine := fmt.Sprintf("%s: %s%s", key, value, CRLF)
+		res += fieldLine
+	}
+
+	res += CRLF
+	res += body
+
+	return res
 }
