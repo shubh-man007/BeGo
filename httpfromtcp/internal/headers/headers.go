@@ -35,6 +35,14 @@ func (h *Headers) Set(name, value string) {
 	}
 }
 
+func (h *Headers) Replace(name, value string) {
+	h.header[strings.ToLower(name)] = value
+}
+
+func (h *Headers) Iter() map[string]string {
+	return h.header
+}
+
 func (h *Headers) Parse(data []byte) (int, bool, error) {
 	bytesConsumed := 0
 
