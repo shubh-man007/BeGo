@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/shubh-man007/BeGo/httpfromtcp/internal/headers"
 )
@@ -118,6 +119,7 @@ func (w *Writer) WriteHeaders(headers *headers.Headers) error {
 			return err
 		}
 	}
+
 	_, err := w.writer.Write([]byte(CRLF))
 	if err != nil {
 		return err
@@ -129,8 +131,8 @@ func (w *Writer) WriteHeaders(headers *headers.Headers) error {
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {
-	if w.Status != WriterStatusBody {
-		return 0, errors.New("state mismatch, body parsed or skipped")
+	if w.Status != WriterStatusBody && w.Status != WriterStatusDone {
+		return 0, errors.New("state mismatch: must write headers before body")
 	}
 
 	n, err := w.writer.Write(p)
@@ -139,8 +141,32 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	}
 
 	w.Status = WriterStatusDone
-
 	return n, nil
+}
+
+func (w *Writer) WriteTrailers(headers *headers.Headers) error {
+	if w.Status != WriterStatusDone {
+		return errors.New("state mismatch: must write headers before body")
+	}
+
+	trailerStr := headers.Get("Trailer")
+	trailers := strings.Split(trailerStr, ",")
+
+	for _, key := range trailers {
+		value := headers.Get(key)
+		fieldLine := fmt.Sprintf("%s: %s%s", key, value, CRLF)
+		_, err := w.writer.Write([]byte(fieldLine))
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err := w.writer.Write([]byte(CRLF))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *Writer) LogResponse(statusCode StatusCode, h *headers.Headers, body string) string {
