@@ -11,3 +11,4 @@
 > 21:18:08 UTC | 26/10/25 --> Added header and body parsing to the request package and added tests. <br>
 > 21:52:46 UTC | 27/10/25 --> Implemented a basic server with graceful shutdown, planning to integrate it with request parser next. <br>
 > 14:03:38 UTC | 05/11/25 --> Refactored server implementation, added handler functionality, fixed request parser to parse-before-read. <br>
+> 13:52:38 UTC | 08/11/25 --> Implemented chunked-encoding and trailers, updated handler to stream binary data as well (videos). <br>
